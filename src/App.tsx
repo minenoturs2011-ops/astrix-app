@@ -12,6 +12,7 @@ import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { EarthquakeFeedController } from "@/features/earthquakes/useEarthquakeFeed";
 import { AlertFeedController } from "@/features/alerts/useAlertFeed";
 import { SatelliteFeedController } from "@/features/satellites/useSatelliteFeed";
+import { FireFeedController } from "@/features/fires/useFireFeed";
 
 export default function App() {
   const isDesktop = useMediaQuery("(min-width: 1024px)");
@@ -64,6 +65,7 @@ export default function App() {
         <EarthquakeFeedController />
         <AlertFeedController />
         <SatelliteFeedController />
+        <FireFeedController />
         {globe}
       </div>
     );
@@ -75,6 +77,7 @@ export default function App() {
       <EarthquakeFeedController />
       <AlertFeedController />
       <SatelliteFeedController />
+      <FireFeedController />
       <TopBar />
 
       <div className="relative flex min-h-0 flex-1">

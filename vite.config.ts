@@ -25,6 +25,12 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/api\/celestrak/, "/NORAD/elements/gp.php"),
       },
+      // NASA FIRMS sends no CORS headers; proxy it (spec §15).
+      "/api/firms": {
+        target: "https://firms.modaps.eosdis.nasa.gov",
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/api\/firms/, ""),
+      },
     },
   },
   test: {

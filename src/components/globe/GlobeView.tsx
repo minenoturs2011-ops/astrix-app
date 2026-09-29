@@ -32,6 +32,7 @@ import { useLayerStore } from "@/stores/useLayerStore";
 import { useEarthquakeStore } from "@/stores/useEarthquakeStore";
 import { useAlertStore } from "@/stores/useAlertStore";
 import { useSatelliteStore } from "@/stores/useSatelliteStore";
+import { useFireStore } from "@/stores/useFireStore";
 import { offlineStyleFor } from "./globeStyles";
 import { CAPS } from "./baseMaps";
 import { getDemoEntities } from "@/lib/demoData";
@@ -39,6 +40,7 @@ import { depthColor, magnitudeToPixelSize } from "@/features/earthquakes/earthqu
 import { severityColor } from "@/features/alerts/alertStyle";
 import { SEVERITY_RANK } from "@/features/alerts/types";
 import { propagateAt, predictedOrbitPath, orbitalPeriodMinutes, inclinationDeg } from "@/features/satellites/propagate";
+import { confidenceColor, frpToPixelSize } from "@/features/fires/fireStyle";
 import type { SatelliteRecord } from "@/features/satellites/types";
 import type { TerraEntity, EntityField } from "@/types/entity";
 
@@ -106,6 +108,9 @@ export function GlobeView() {
   const satEnabledRef = useRef(false);
   const lastSatUpdate = useRef(0);
   const orbitEntityId = useRef<string | null>(null);
+  // Wildfire (FIRMS) point primitives + lookup.
+  const fireCollection = useRef<PointPrimitiveCollection | null>(null);
+  const fireLookup = useRef<Map<string, TerraEntity>>(new Map());
   // Base-map imagery overlay + optional 3D tilesets.
   const detailLayer = useRef<ImageryLayer | null>(null);
   const google3dTileset = useRef<Cesium3DTileset | null>(null);
@@ -201,6 +206,11 @@ export function GlobeView() {
           const quake = quakeLookup.current.get(id);
           if (quake) {
             select(quake);
+            return;
+          }
+          const fire = fireLookup.current.get(id);
+          if (fire) {
+            select(fire);
             return;
           }
           const satRec = satRecordsRef.current.find((r) => r.id === id);
@@ -520,6 +530,48 @@ export function GlobeView() {
 
     viewer.scene.requestRender();
   }, [quakeEnabled, quakeRecords, quakeMinMag, quakeOpacity, select]);
+
+  // ── Wildfires (NASA FIRMS) → GPU point primitives ───────────────────────────
+  const fireEnabled = useLayerStore((s) => s.layers["wildfires"]?.enabled ?? false);
+  const fireOpacity = useLayerStore((s) => s.layers["wildfires"]?.opacity ?? 1);
+  const fireRecords = useFireStore((s) => s.records);
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer) return;
+
+    if (!fireEnabled) {
+      if (fireCollection.current) {
+        viewer.scene.primitives.remove(fireCollection.current);
+        fireCollection.current = null;
+      }
+      fireLookup.current.clear();
+      if (useUiStore.getState().selected?.category === "wildfire") select(null);
+      viewer.scene.requestRender();
+      return;
+    }
+
+    if (!fireCollection.current) {
+      fireCollection.current = viewer.scene.primitives.add(new PointPrimitiveCollection());
+    }
+    const collection = fireCollection.current!;
+    collection.removeAll();
+    fireLookup.current.clear();
+
+    for (const rec of fireRecords) {
+      const e = rec.entity;
+      collection.add({
+        position: Cartesian3.fromDegrees(e.longitude, e.latitude, 0),
+        color: Color.fromCssColorString(confidenceColor(rec.confidence)).withAlpha(fireOpacity),
+        outlineColor: Color.fromCssColorString("#2A0A00").withAlpha(0.5 * fireOpacity),
+        outlineWidth: 1,
+        pixelSize: frpToPixelSize(rec.frp),
+        scaleByDistance: new NearFarScalar(2.0e6, 1.15, 4.0e7, 0.5),
+        id: { terraId: e.id },
+      });
+      fireLookup.current.set(e.id, e);
+    }
+    viewer.scene.requestRender();
+  }, [fireEnabled, fireRecords, fireOpacity, select]);
 
   // ── Weather alerts (NOAA/NWS) → polygons + centroid points ──────────────────
   const alertEnabled = useLayerStore((s) => s.layers["severe-alerts"]?.enabled ?? false);

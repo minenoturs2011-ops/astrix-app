@@ -87,6 +87,29 @@ func main() {
 		_, _ = io.Copy(w, resp.Body)
 	})
 
+	// Proxy NASA FIRMS (wildfire detections); it sends no CORS headers.
+	mux.HandleFunc("/api/firms/", func(w http.ResponseWriter, r *http.Request) {
+		target := "https://firms.modaps.eosdis.nasa.gov" + r.URL.Path[len("/api/firms"):]
+		if r.URL.RawQuery != "" {
+			target += "?" + r.URL.RawQuery
+		}
+		req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, target, nil)
+		if err != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		req.Header.Set("User-Agent", "TERRA/1.0 (desktop launcher)")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			http.Error(w, "upstream error", http.StatusBadGateway)
+			return
+		}
+		defer resp.Body.Close()
+		w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+		w.WriteHeader(resp.StatusCode)
+		_, _ = io.Copy(w, resp.Body)
+	})
+
 	mux.Handle("/", http.FileServer(http.FS(sub)))
 
 	fmt.Println("====================================================")

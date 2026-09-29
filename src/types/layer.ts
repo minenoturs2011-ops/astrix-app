@@ -41,6 +41,9 @@ export type TerraLayerDefinition = {
   implementationStatus: LayerImplementationStatus;
   /** True when this layer renders simulated/demo data (must be labeled, spec §2.3). */
   simulated?: boolean;
+  /** Capability (env key) that unlocks this layer when status is
+   * "requires-credentials" — e.g. "firms" for NASA FIRMS wildfires. */
+  requiresCapability?: "ion" | "google" | "firms";
 };
 
 /**

@@ -6,7 +6,8 @@
 TERRA is a premium, dark, desktop-first geospatial exploration platform built
 around a cinematic 3D Earth. This repository implements **Phase 1 — the globe
 foundation** and **Phase 2 — first real data layers**: live **earthquakes
-(USGS)**, **weather alerts (NOAA/NWS)**, and **satellites (CelesTrak, SGP4)**.
+(USGS)**, **weather alerts (NOAA/NWS)**, **satellites (CelesTrak, SGP4)**, and
+**wildfires (NASA FIRMS)**.
 Zoom in for high-resolution **satellite imagery** and **street maps** (free), with
 optional **3D terrain, 3D buildings, and Google Photorealistic 3D Tiles** behind
 your own keys. It also ships a one-file **desktop launcher** (a Windows/macOS/Linux
@@ -66,6 +67,18 @@ toggle-off):
 - Inspector: event, severity, urgency, certainty, headline, area, onset/expires,
   instructions, and a link to the official alert. Includes the reminder that a
   visualization is not a substitute for official guidance.
+
+**Wildfires — NASA FIRMS:**
+
+- Near-real-time satellite fire detections (VIIRS / MODIS) from NASA FIRMS, last
+  24h, global. CSV is parsed header-driven; points are coloured by **confidence**
+  and sized by **fire radiative power**, with a legend.
+- Each point is a **thermal anomaly, not a confirmed fire or perimeter** (stated
+  in the UI). Inspector: FRP, confidence, brightness, satellite/instrument,
+  day/night, and acquisition time (separate from receipt time).
+- FIRMS needs a **free MAP_KEY** and sends no CORS headers, so it is proxied
+  same-origin (`/api/firms`). The layer shows as "needs key" until you add
+  `VITE_FIRMS_MAP_KEY` (see [API keys](#api-keys--where-to-get-them)).
 
 **Satellites — CelesTrak (SGP4):**
 
@@ -168,6 +181,7 @@ HTTP referrer in the provider's console.
 | --- | ------- | --------------- |
 | `VITE_CESIUM_ION_TOKEN` | 3D terrain + 3D buildings | Sign in at <https://ion.cesium.com/> → **Access Tokens** → copy the default token (free tier). |
 | `VITE_GOOGLE_MAPS_API_KEY` | Google Photorealistic 3D Tiles ("Google 3D") | <https://console.cloud.google.com/> → create/select a project → enable **Map Tiles API** → **Credentials → Create API key** → restrict by HTTP referrer. Monthly free allowance; beyond it is billed. |
+| `VITE_FIRMS_MAP_KEY` | Wildfires (NASA FIRMS) | <https://firms.modaps.eosdis.nasa.gov/api/map_key/> → enter your email → get a MAP_KEY instantly (free). |
 
 No key is needed for earthquakes (USGS), weather alerts (NOAA/NWS), satellites
 (CelesTrak), place search (Open-Meteo), or the Satellite/Streets base maps.
@@ -244,6 +258,7 @@ All current sources are key-less and permissively licensed:
 | **USGS Earthquake Hazards Program** | Live earthquakes | "Earthquake data courtesy of the U.S. Geological Survey." Public GeoJSON feeds. <https://earthquake.usgs.gov/> |
 | **NOAA / National Weather Service** | Live weather alerts (US) | "Alerts courtesy of NOAA / National Weather Service." Public API. <https://www.weather.gov/documentation/services-web-api> |
 | **CelesTrak** | Satellite orbital elements (TLE) | "Orbital element sets courtesy of CelesTrak." Public, proxied for CORS. <https://celestrak.org/> |
+| **NASA FIRMS** | Wildfire detections | "Fire detections courtesy of NASA FIRMS." Free MAP_KEY, proxied for CORS. <https://firms.modaps.eosdis.nasa.gov/> |
 | **Esri World Imagery** | Satellite base map | "Imagery © Esri and its data providers." Free, attribution required. |
 | **OpenStreetMap** | Streets base map | "© OpenStreetMap contributors" (ODbL). Subject to the OSM tile usage policy. |
 
@@ -307,10 +322,10 @@ style switching, demo-entity selection, cursor readout, responsive layout).
 ## Roadmap
 
 Phase 1 ✅ Globe foundation ·
-Phase 2 🚧 First real public data layers — **earthquakes (USGS)**, **weather
-alerts (NOAA/NWS)**, and **satellites (CelesTrak)** done; wildfires next. Plus
-high-detail base maps (Esri satellite, OSM streets) and optional 3D terrain/
-buildings/Google 3D. ·
+Phase 2 ✅ First real public data layers — **earthquakes (USGS)**, **weather
+alerts (NOAA/NWS)**, **satellites (CelesTrak)**, and **wildfires (NASA FIRMS)**.
+Plus high-detail base maps (Esri satellite, OSM streets) and optional 3D terrain,
+3D buildings, and Google Photorealistic 3D Tiles. ·
 Phase 3 Unified tracking (aircraft/satellite/maritime, trails, orbit passes) ·
 Phase 4 Weather & environment rasters ·
 Phase 5 Timeline & history ·

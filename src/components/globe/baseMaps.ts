@@ -40,7 +40,10 @@ export const BASE_MAPS: BaseMapDef[] = [
 export const CAPS = {
   ion: Boolean(import.meta.env.VITE_CESIUM_ION_TOKEN),
   google: Boolean(import.meta.env.VITE_GOOGLE_MAPS_API_KEY),
+  firms: Boolean(import.meta.env.VITE_FIRMS_MAP_KEY),
 };
+
+export type Capability = keyof typeof CAPS;
 
 export function baseMapAvailable(def: BaseMapDef): boolean {
   if (def.requires === "google") return CAPS.google;

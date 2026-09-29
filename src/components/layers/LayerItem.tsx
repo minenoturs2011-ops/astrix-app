@@ -6,6 +6,8 @@ import { SOURCES } from "@/lib/sources";
 import { EarthquakeControls } from "@/features/earthquakes/EarthquakeControls";
 import { AlertControls } from "@/features/alerts/AlertControls";
 import { SatelliteControls } from "@/features/satellites/SatelliteControls";
+import { FireControls } from "@/features/fires/FireControls";
+import { CAPS } from "@/components/globe/baseMaps";
 
 const STATUS_META: Record<
   TerraLayerDefinition["implementationStatus"],
@@ -23,7 +25,12 @@ export function LayerItem({ layer }: { layer: TerraLayerDefinition }) {
   const setOpacity = useLayerStore((s) => s.setOpacity);
 
   const enabled = runtime?.enabled ?? false;
-  const canEnable = layer.implementationStatus === "available";
+  // Available layers, or credential-gated layers whose key is present, can be enabled.
+  const canEnable =
+    layer.implementationStatus === "available" ||
+    (layer.implementationStatus === "requires-credentials" &&
+      !!layer.requiresCapability &&
+      CAPS[layer.requiresCapability]);
   const status = STATUS_META[layer.implementationStatus];
   const detailsId = `layer-details-${layer.id}`;
 
@@ -118,6 +125,7 @@ export function LayerItem({ layer }: { layer: TerraLayerDefinition }) {
       {enabled && canEnable && layer.id === "earthquakes" && <EarthquakeControls />}
       {enabled && canEnable && layer.id === "severe-alerts" && <AlertControls />}
       {enabled && canEnable && layer.id === "satellites" && <SatelliteControls />}
+      {enabled && canEnable && layer.id === "wildfires" && <FireControls />}
 
       {expanded && (
         <div id={detailsId} className="space-y-2 border-t border-terra-border px-2.5 py-2 text-xs">
