@@ -16,12 +16,15 @@ import {
   HeightReference,
   Cartesian2,
   Entity as CesiumEntity,
+  PointPrimitiveCollection,
   defined,
 } from "cesium";
 import { useUiStore } from "@/stores/useUiStore";
 import { useLayerStore } from "@/stores/useLayerStore";
+import { useEarthquakeStore } from "@/stores/useEarthquakeStore";
 import { GLOBE_STYLES } from "./globeStyles";
 import { getDemoEntities } from "@/lib/demoData";
+import { depthColor, magnitudeToPixelSize } from "@/features/earthquakes/earthquakeStyle";
 import type { TerraEntity } from "@/types/entity";
 
 const HOME_VIEW = { lon: 12, lat: 25, height: 22_000_000 };
@@ -41,6 +44,9 @@ export function GlobeView() {
   // Latest simulated demo snapshot, refreshed each clock tick.
   const demoSnapshot = useRef<TerraEntity[]>([]);
   const demoEntityIds = useRef<Set<string>>(new Set());
+  // Earthquake point primitives + id→entity lookup for selection.
+  const quakeCollection = useRef<PointPrimitiveCollection | null>(null);
+  const quakeLookup = useRef<Map<string, TerraEntity>>(new Map());
 
   // Read stores imperatively inside effects to avoid re-creating the viewer.
   const setCursor = useUiStore((s) => s.setCursor);
@@ -111,12 +117,24 @@ export function GlobeView() {
     // Selection: click an entity to select; click empty space to deselect.
     handler.setInputAction((click: ScreenSpaceEventHandler.PositionedEvent) => {
       const picked = viewer.scene.pick(click.position);
-      if (defined(picked) && picked.id instanceof CesiumEntity && picked.id.properties?.terraId) {
-        const id = picked.id.properties.terraId.getValue(viewer.clock.currentTime) as string;
-        const entity = demoSnapshot.current.find((e) => e.id === id);
-        if (entity) {
-          select(entity);
-          return;
+      if (defined(picked)) {
+        // Demo entities are Cesium Entities carrying a terraId property.
+        if (picked.id instanceof CesiumEntity && picked.id.properties?.terraId) {
+          const id = picked.id.properties.terraId.getValue(viewer.clock.currentTime) as string;
+          const entity = demoSnapshot.current.find((e) => e.id === id);
+          if (entity) {
+            select(entity);
+            return;
+          }
+        }
+        // Earthquake points are primitives whose id is a plain { terraId } object.
+        const rawId = picked.id;
+        if (rawId && typeof rawId === "object" && "terraId" in rawId) {
+          const entity = quakeLookup.current.get((rawId as { terraId: string }).terraId);
+          if (entity) {
+            select(entity);
+            return;
+          }
         }
       }
       select(null);
@@ -227,6 +245,63 @@ export function GlobeView() {
     }
     viewer.scene.requestRender();
   }, [demoEnabled, demoOpacity, select]);
+
+  // ── Earthquakes (USGS) → GPU-backed point primitives (spec §17) ─────────────
+  const quakeEnabled = useLayerStore((s) => s.layers["earthquakes"]?.enabled ?? false);
+  const quakeOpacity = useLayerStore((s) => s.layers["earthquakes"]?.opacity ?? 1);
+  const quakeRecords = useEarthquakeStore((s) => s.records);
+  const quakeMinMag = useEarthquakeStore((s) => s.minMagnitude);
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer) return;
+
+    // Tear down when disabled (spec §32 cleanup).
+    if (!quakeEnabled) {
+      if (quakeCollection.current) {
+        viewer.scene.primitives.remove(quakeCollection.current);
+        quakeCollection.current = null;
+      }
+      quakeLookup.current.clear();
+      if (useUiStore.getState().selected?.category === "earthquake") select(null);
+      viewer.scene.requestRender();
+      return;
+    }
+
+    if (!quakeCollection.current) {
+      quakeCollection.current = viewer.scene.primitives.add(new PointPrimitiveCollection());
+    }
+    const collection = quakeCollection.current!;
+    collection.removeAll();
+    quakeLookup.current.clear();
+
+    const filtered =
+      quakeMinMag <= 0
+        ? quakeRecords
+        : quakeRecords.filter((r) => (r.magnitude ?? -Infinity) >= quakeMinMag);
+
+    for (const r of filtered) {
+      const e = r.entity;
+      collection.add({
+        position: Cartesian3.fromDegrees(e.longitude, e.latitude, 0),
+        color: Color.fromCssColorString(depthColor(r.depthKm)).withAlpha(quakeOpacity),
+        outlineColor: Color.fromCssColorString("#04060A").withAlpha(0.6 * quakeOpacity),
+        outlineWidth: 1,
+        pixelSize: magnitudeToPixelSize(r.magnitude),
+        scaleByDistance: new NearFarScalar(2.0e6, 1.15, 4.0e7, 0.55),
+        id: { terraId: e.id },
+      });
+      quakeLookup.current.set(e.id, e);
+    }
+
+    // Keep a selected earthquake's inspector data in sync after a refresh.
+    const sel = useUiStore.getState().selected;
+    if (sel?.category === "earthquake") {
+      const fresh = quakeLookup.current.get(sel.id);
+      if (fresh) useUiStore.setState({ selected: fresh });
+    }
+
+    viewer.scene.requestRender();
+  }, [quakeEnabled, quakeRecords, quakeMinMag, quakeOpacity, select]);
 
   // ── Fly-to (search result / bookmark) ──────────────────────────────────────
   const flyTarget = useUiStore((s) => s.flyTarget);

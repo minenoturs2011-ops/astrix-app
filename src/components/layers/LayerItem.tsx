@@ -3,6 +3,7 @@ import type { TerraLayerDefinition } from "@/types/layer";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { useLayerStore } from "@/stores/useLayerStore";
 import { SOURCES } from "@/lib/sources";
+import { EarthquakeControls } from "@/features/earthquakes/EarthquakeControls";
 
 const STATUS_META: Record<
   TerraLayerDefinition["implementationStatus"],
@@ -110,6 +111,9 @@ export function LayerItem({ layer }: { layer: TerraLayerDefinition }) {
           </span>
         </div>
       )}
+
+      {/* Layer-specific controls (spec §6) */}
+      {enabled && canEnable && layer.id === "earthquakes" && <EarthquakeControls />}
 
       {expanded && (
         <div id={detailsId} className="space-y-2 border-t border-terra-border px-2.5 py-2 text-xs">

@@ -4,8 +4,9 @@
 > historical data layers.
 
 TERRA is a premium, dark, desktop-first geospatial exploration platform built
-around a cinematic 3D Earth. This repository currently implements **Phase 1 —
-the globe foundation** from the product specification.
+around a cinematic 3D Earth. This repository implements **Phase 1 — the globe
+foundation** plus the first real data layer of **Phase 2 — live earthquakes
+from USGS**.
 
 The guiding principle throughout: **never fake coverage, precision, or live
 status.** Simulated data is always labeled; real data always carries its source,
@@ -43,12 +44,44 @@ timestamp, and known limitations.
   status never encoded by color alone, `prefers-reduced-motion` support, and a
   reduced-effects (low-power) mode.
 
+## What's implemented (Phase 2 — earthquakes)
+
+The first real public data layer, wired end-to-end through the provider adapter
+pattern:
+
+- **Live earthquakes from USGS** — the public, key-less USGS GeoJSON summary
+  feeds. Payload is **Zod-validated**, coordinates/units are normalized (depth in
+  km), and **origin time (observed) is kept separate from receipt time**.
+- **Honest freshness** — feed status (`LIVE` / `DELAYED` / `STALE` / `OFFLINE`)
+  is derived from the feed's own `generated` timestamp, never hardcoded. Polls
+  every 5 minutes with exponential backoff on failure, keeping the last data and
+  marking it stale/offline rather than blanking or faking it.
+- **Filters** — time window (past hour / 24 h / 7 days) and a minimum-magnitude
+  slider, with a live result count and empty-state warnings.
+- **Encoding + legend** — point **colour = depth** (shallow/intermediate/deep),
+  **size = magnitude**, always paired with a legend (never colour alone).
+- **Performance** — rendered with Cesium's GPU-backed `PointPrimitiveCollection`
+  so hundreds–thousands of events stay smooth.
+- **Inspector** — magnitude, depth, origin time, place, review status, PAGER
+  alert, tsunami flag, significance; only fields the feed actually provides, with
+  a link to the official USGS event page. Attribution: *"Earthquake data courtesy
+  of the U.S. Geological Survey."*
+
+### Standalone HTML demo
+
+`standalone/terra-earthquakes.html` is a **single self-contained file** you can
+open directly in a modern browser (needs internet for the CDN + live feed, but
+**no build step and no API key**). It shows the live USGS earthquake globe with
+the same styling, filters, legend, and inspector. It loads CesiumJS and its
+offline Natural Earth II imagery from a CDN and fetches the live USGS feed
+client-side.
+
 ### Not yet implemented (later phases)
 
-Real data feeds (earthquakes, weather alerts, wildfires, satellites, aircraft,
-ships…), the time machine / historical playback, filters, saved views, alerts,
-file import, and the diagnostics panel are catalogued but not built. See
-[Roadmap](#roadmap). The catalog UI shows their status explicitly.
+Other real feeds (weather alerts, wildfires, satellites, aircraft, ships…), the
+time machine / historical playback, saved views, alerts, file import, and the
+diagnostics panel are catalogued but not built. See [Roadmap](#roadmap). The
+catalog UI shows their status explicitly.
 
 ---
 
@@ -104,18 +137,19 @@ All configuration is optional. Copy `.env.example` to `.env` to customize:
 
 ## Data sources & attribution
 
-Phase 1 uses only key-less, permissively-licensed sources:
+All current sources are key-less and permissively licensed:
 
 | Source | Used for | Attribution / terms |
 | ------ | -------- | ------------------- |
 | **Natural Earth II** (bundled with CesiumJS) | Base globe imagery | Public domain. <https://www.naturalearthdata.com/> |
 | **CesiumJS** | Globe engine | © Cesium. The on-globe Cesium logo credit is retained per Cesium's terms. |
 | **Open-Meteo Geocoding API** | Place search | Free, key-less. Place names from GeoNames (CC BY 4.0). <https://open-meteo.com/en/docs/geocoding-api> |
+| **USGS Earthquake Hazards Program** | Live earthquakes | "Earthquake data courtesy of the U.S. Geological Survey." Public GeoJSON feeds. <https://earthquake.usgs.gov/> |
 
-Additional providers (USGS, NOAA/NWS, NASA FIRMS, CelesTrak, OpenSky, …) are
-registered in `src/lib/sources.ts` for later phases. **Their terms, coverage,
-and redistribution rules must be re-verified before they are wired into a
-production layer.**
+Other providers (NOAA/NWS, NASA FIRMS, CelesTrak, OpenSky, …) are registered in
+`src/lib/sources.ts` for later phases. **Their terms, coverage, and
+redistribution rules must be re-verified before they are wired into a production
+layer.**
 
 ---
 
@@ -172,8 +206,8 @@ style switching, demo-entity selection, cursor readout, responsive layout).
 ## Roadmap
 
 Phase 1 ✅ Globe foundation ·
-Phase 2 First real public data layers (earthquakes, weather alerts, wildfires,
-satellites) ·
+Phase 2 🚧 First real public data layers — **earthquakes (USGS) done**; weather
+alerts, wildfires, satellites next ·
 Phase 3 Unified tracking (aircraft/satellite/maritime, trails) ·
 Phase 4 Weather & environment rasters ·
 Phase 5 Timeline & history ·

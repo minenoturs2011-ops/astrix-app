@@ -146,7 +146,7 @@ export function TopBar() {
         </span>
         <span className="text-base font-semibold tracking-wide text-terra-text">TERRA</span>
         <span className="hidden rounded border border-terra-border px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-terra-text-muted sm:inline">
-          Phase 1
+          Phase 2
         </span>
       </div>
 

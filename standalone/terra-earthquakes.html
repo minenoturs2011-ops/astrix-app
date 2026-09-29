@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <title>TERRA — Live Earthquakes (USGS)</title>
+    <meta
+      name="description"
+      content="A self-contained 3D globe showing real, live earthquakes from the USGS public feed. No API key required."
+    />
+
+    <!-- Cesium base URL must be set before Cesium.js loads so it can find its
+         bundled offline Natural Earth II imagery and workers from the CDN.
+         This means the globe renders with NO Cesium Ion access token. -->
+    <script>
+      window.CESIUM_BASE_URL = "https://cdn.jsdelivr.net/npm/cesium@1.123.0/Build/Cesium/";
+    </script>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/cesium@1.123.0/Build/Cesium/Widgets/widgets.css"
+    />
+    <link rel="preconnect" href="https://rsms.me/" />
+    <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+    <style>
+      :root {
+        --terra-bg: #07090d;
+        --terra-surface-1: #0c1017;
+        --terra-surface-2: #111722;
+        --terra-surface-3: #17202d;
+        --terra-text: #f3f6fa;
+        --terra-text-secondary: #a3adbc;
+        --terra-text-muted: #6f7b8d;
+        --terra-border: rgba(220, 235, 255, 0.09);
+        --terra-border-hover: rgba(220, 235, 255, 0.17);
+        --terra-accent: #70a7ff;
+        --terra-cyan: #55d6e8;
+        --terra-green: #54d6a0;
+        --terra-amber: #ffc66d;
+        --terra-red: #ff737d;
+        color-scheme: dark;
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; margin: 0; }
+      body {
+        background: var(--terra-bg);
+        color: var(--terra-text);
+        font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        overflow: hidden;
+      }
+      .tnum { font-variant-numeric: tabular-nums; }
+      #cesiumContainer { position: absolute; inset: 0; }
+
+      /* Header */
+      header {
+        position: absolute; top: 0; left: 0; right: 0; height: 56px; z-index: 10;
+        display: flex; align-items: center; gap: 12px; padding: 0 16px;
+        background: color-mix(in srgb, var(--terra-surface-1) 82%, transparent);
+        border-bottom: 1px solid var(--terra-border);
+        backdrop-filter: blur(18px);
+      }
+      .logo {
+        width: 28px; height: 28px; border-radius: 7px;
+        background: linear-gradient(135deg, var(--terra-accent), #a78bfa);
+        display: flex; align-items: center; justify-content: center; font-weight: 700; color: var(--terra-bg);
+      }
+      .brand { font-weight: 600; letter-spacing: 0.02em; }
+      .tag {
+        font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--terra-text-muted);
+        border: 1px solid var(--terra-border); border-radius: 5px; padding: 2px 6px;
+      }
+      header .clock { margin-left: auto; font-size: 12px; color: var(--terra-text-secondary); }
+
+      /* Panels */
+      .panel {
+        position: absolute; z-index: 9;
+        background: color-mix(in srgb, var(--terra-surface-1) 86%, transparent);
+        border: 1px solid var(--terra-border); border-radius: 12px;
+        backdrop-filter: blur(18px);
+        box-shadow: 0 16px 50px rgba(0, 0, 0, 0.55);
+      }
+      #controls { top: 72px; left: 16px; width: 300px; padding: 14px; }
+      #inspector { top: 72px; right: 16px; width: 320px; padding: 14px; display: none; max-height: calc(100% - 150px); overflow-y: auto; }
+
+      h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--terra-text-muted); margin: 0 0 10px; }
+      .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+      label.small { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--terra-text-muted); }
+
+      .status {
+        display: inline-flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 600;
+        text-transform: uppercase; letter-spacing: 0.04em; padding: 3px 9px; border-radius: 999px; border: 1px solid;
+      }
+      .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+
+      .seg { display: flex; gap: 2px; background: var(--terra-surface-2); border: 1px solid var(--terra-border); border-radius: 9px; padding: 2px; margin-top: 6px; }
+      .seg button { flex: 1; border: 0; background: transparent; color: var(--terra-text-muted); border-radius: 7px; padding: 6px 0; font-size: 12px; cursor: pointer; }
+      .seg button.active { background: var(--terra-surface-3); color: var(--terra-text); }
+
+      input[type="range"] { width: 100%; accent-color: var(--terra-accent); margin-top: 6px; }
+
+      .count { font-size: 12px; color: var(--terra-text-secondary); margin-top: 10px; }
+      .count b { color: var(--terra-text); }
+      .warn { color: var(--terra-amber); }
+      .err { color: var(--terra-red); font-size: 12px; }
+
+      .legend { margin-top: 12px; border: 1px solid var(--terra-border); border-radius: 10px; padding: 10px; background: color-mix(in srgb, var(--terra-surface-1) 60%, transparent); }
+      .legend .lg-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--terra-text-muted); }
+      .legend .lg-item { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--terra-text-secondary); margin-top: 6px; }
+
+      /* Inspector fields */
+      .field { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 7px 0; border-top: 1px solid var(--terra-border); }
+      .field:first-of-type { border-top: 0; }
+      .field .k { font-size: 12px; color: var(--terra-text-muted); }
+      .field .v { font-size: 13px; text-align: right; }
+      #inspector .title { font-size: 15px; font-weight: 600; margin: 4px 0 2px; }
+      #inspector .cat { font-size: 12px; color: var(--terra-text-secondary); text-transform: capitalize; }
+      .actions { display: flex; gap: 8px; margin-top: 12px; }
+      .actions a, .actions button {
+        flex: 1; text-align: center; text-decoration: none; cursor: pointer;
+        border: 1px solid var(--terra-border); border-radius: 9px; padding: 8px 0;
+        font-size: 12px; color: var(--terra-text-secondary); background: transparent;
+      }
+      .actions a:hover, .actions button:hover { border-color: var(--terra-border-hover); color: var(--terra-text); }
+      .close { position: absolute; top: 10px; right: 10px; border: 0; background: transparent; color: var(--terra-text-muted); cursor: pointer; font-size: 18px; line-height: 1; }
+
+      .coord {
+        position: absolute; bottom: 14px; left: 16px; z-index: 9; font-size: 11px;
+        color: var(--terra-text-secondary); background: color-mix(in srgb, var(--terra-surface-1) 80%, transparent);
+        border: 1px solid var(--terra-border); border-radius: 8px; padding: 5px 10px; backdrop-filter: blur(8px);
+      }
+      .attrib {
+        position: absolute; bottom: 14px; right: 16px; z-index: 9; font-size: 10px; color: var(--terra-text-muted);
+        background: color-mix(in srgb, var(--terra-surface-1) 70%, transparent); border-radius: 8px; padding: 5px 10px;
+        max-width: 360px; text-align: right; backdrop-filter: blur(8px);
+      }
+      .attrib a { color: var(--terra-text-secondary); }
+      #loading { position: absolute; inset: 56px 0 0 0; display: flex; align-items: center; justify-content: center; z-index: 8; color: var(--terra-text-secondary); }
+      .cesium-widget-credits { display: none !important; } /* attribution shown in our own footer */
+      @media (max-width: 720px) {
+        #controls { width: calc(100% - 32px); }
+        #inspector { width: calc(100% - 32px); top: auto; bottom: 70px; max-height: 45%; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="cesiumContainer"></div>
+    <div id="loading">Loading globe & live USGS earthquakes…</div>
+
+    <header>
+      <span class="logo">◐</span>
+      <span class="brand">TERRA</span>
+      <span class="tag">Live Earthquakes</span>
+      <span class="clock tnum" id="clock"></span>
+    </header>
+
+    <section class="panel" id="controls">
+      <h2>USGS Earthquakes</h2>
+      <div class="row">
+        <span class="status" id="statusBadge" style="color: var(--terra-green); border-color: var(--terra-green);">
+          <span class="dot" style="background: var(--terra-green);"></span> <span id="statusLabel">Connecting…</span>
+        </span>
+        <span class="tnum" id="updatedAt" style="font-size: 11px; color: var(--terra-text-muted);"></span>
+      </div>
+      <div id="errorMsg" class="err" style="margin-top: 8px; display: none;"></div>
+
+      <div style="margin-top: 12px;">
+        <label class="small">Time window</label>
+        <div class="seg" id="windowSeg">
+          <button data-w="hour">1h</button>
+          <button data-w="day" class="active">24h</button>
+          <button data-w="week">7d</button>
+        </div>
+      </div>
+
+      <div style="margin-top: 12px;">
+        <div class="row">
+          <label class="small">Min magnitude</label>
+          <span class="tnum" id="magLabel" style="font-size: 12px; color: var(--terra-text-secondary);">All</span>
+        </div>
+        <input type="range" id="magSlider" min="0" max="7" step="0.5" value="0" />
+      </div>
+
+      <div class="count" id="count"></div>
+
+      <div class="legend">
+        <div class="lg-title">Colour — depth</div>
+        <div class="lg-item"><span class="dot" style="background: var(--terra-red);"></span> 0–70 km (shallow)</div>
+        <div class="lg-item"><span class="dot" style="background: var(--terra-amber);"></span> 70–300 km (intermediate)</div>
+        <div class="lg-item"><span class="dot" style="background: var(--terra-accent);"></span> 300+ km (deep)</div>
+        <div class="lg-title" style="margin-top: 10px;">Size — magnitude</div>
+        <div class="lg-item">
+          <span class="dot" style="width:6px;height:6px;background:var(--terra-text-secondary);"></span>M2
+          <span class="dot" style="width:10px;height:10px;background:var(--terra-text-secondary);margin-left:8px;"></span>M4
+          <span class="dot" style="width:16px;height:16px;background:var(--terra-text-secondary);margin-left:8px;"></span>M6
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="inspector">
+      <button class="close" id="inspectorClose" aria-label="Close">×</button>
+      <h2>Entity Inspector</h2>
+      <div class="title" id="insTitle"></div>
+      <div class="cat">Earthquake</div>
+      <div style="margin: 10px 0;">
+        <span class="status" id="insStatus" style="color: var(--terra-green); border-color: var(--terra-green);">
+          <span class="dot" style="background: var(--terra-green);"></span> LIVE
+        </span>
+      </div>
+      <div id="insFields"></div>
+      <p style="font-size: 10px; color: var(--terra-text-muted); margin-top: 12px;">
+        Earthquake data courtesy of the U.S. Geological Survey.
+      </p>
+      <div class="actions">
+        <button id="insCenter">Center</button>
+        <a id="insSource" target="_blank" rel="noreferrer">Open USGS ↗</a>
+      </div>
+    </section>
+
+    <div class="coord tnum" id="coord">Move cursor over the globe for coordinates</div>
+    <div class="attrib">
+      Imagery: Natural Earth II (public domain). Globe: CesiumJS. Earthquakes:
+      <a href="https://earthquake.usgs.gov/" target="_blank" rel="noreferrer">USGS</a>. No API key used.
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/cesium@1.123.0/Build/Cesium/Cesium.js"></script>
+    <script>
+      "use strict";
+      const USGS_BASE = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary";
+      const REFRESH_SECONDS = 300;
+      const state = { window: "day", minMag: 0, records: [], lastGenerated: null };
+
+      // ── Live UTC clock ────────────────────────────────────────────────────
+      function tickClock() {
+        document.getElementById("clock").textContent = new Date().toISOString().slice(11, 19) + " UTC";
+      }
+      setInterval(tickClock, 1000);
+      tickClock();
+
+      // ── Encoding helpers (color = depth, size = magnitude) ────────────────
+      function depthColor(km) {
+        if (km >= 300) return Cesium.Color.fromCssColorString("#70A7FF");
+        if (km >= 70) return Cesium.Color.fromCssColorString("#FFC66D");
+        return Cesium.Color.fromCssColorString("#FF737D");
+      }
+      function magSize(mag) {
+        if (mag === null || Number.isNaN(mag)) return 6;
+        return Math.max(6, Math.min(30, 6 + Math.max(0, mag) * 2.6));
+      }
+      function fmtUtc(ms) {
+        if (!ms) return "—";
+        return new Date(ms).toISOString().slice(0, 19).replace("T", " ") + "Z";
+      }
+      function timeAgo(ms) {
+        if (!ms) return "unknown";
+        const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
+        if (s < 60) return s + "s ago";
+        if (s < 3600) return Math.floor(s / 60) + "m ago";
+        if (s < 86400) return Math.floor(s / 3600) + "h ago";
+        return Math.floor(s / 86400) + "d ago";
+      }
+
+      // ── Cesium viewer (offline Natural Earth II imagery, no Ion token) ─────
+      const viewer = new Cesium.Viewer("cesiumContainer", {
+        baseLayer: Cesium.ImageryLayer.fromProviderAsync(
+          Cesium.TileMapServiceImageryProvider.fromUrl(
+            Cesium.buildModuleUrl("Assets/Textures/NaturalEarthII"),
+          ),
+        ),
+        baseLayerPicker: false,
+        geocoder: false,
+        homeButton: false,
+        sceneModePicker: false,
+        navigationHelpButton: false,
+        animation: false,
+        timeline: false,
+        fullscreenButton: false,
+        infoBox: false,
+        selectionIndicator: false,
+      });
+      viewer.scene.backgroundColor = Cesium.Color.fromCssColorString("#04060a");
+      viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString("#0a1626");
+      viewer.scene.skyAtmosphere.show = true;
+      viewer.camera.setView({ destination: Cesium.Cartesian3.fromDegrees(0, 20, 24_000_000) });
+      document.getElementById("loading").style.display = "none";
+
+      window.__terraViewer = viewer; // handy for inspection/debugging in the console
+      const points = viewer.scene.primitives.add(new Cesium.PointPrimitiveCollection());
+      const lookup = new Map();
+
+      // ── Cursor coordinate readout ─────────────────────────────────────────
+      const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+      handler.setInputAction((m) => {
+        const c = viewer.camera.pickEllipsoid(m.endPosition, viewer.scene.globe.ellipsoid);
+        const el = document.getElementById("coord");
+        if (c) {
+          const carto = Cesium.Cartographic.fromCartesian(c);
+          const lat = Cesium.Math.toDegrees(carto.latitude).toFixed(4);
+          const lon = Cesium.Math.toDegrees(carto.longitude).toFixed(4);
+          el.textContent = "lat " + lat + "°   lon " + lon + "°";
+        } else {
+          el.textContent = "Move cursor over the globe for coordinates";
+        }
+      }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+
+      // ── Selection → inspector ─────────────────────────────────────────────
+      handler.setInputAction((click) => {
+        const picked = viewer.scene.pick(click.position);
+        if (Cesium.defined(picked) && picked.id && picked.id.terraId) {
+          const rec = lookup.get(picked.id.terraId);
+          if (rec) return showInspector(rec);
+        }
+        document.getElementById("inspector").style.display = "none";
+      }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+      function field(k, v, unit) {
+        if (v === null || v === undefined || v === "") return "";
+        return '<div class="field"><span class="k">' + k + '</span><span class="v tnum">' + v +
+          (unit ? ' <span style="color:var(--terra-text-secondary);font-size:11px;">' + unit + "</span>" : "") + "</span></div>";
+      }
+      function showInspector(rec) {
+        const p = rec.props;
+        document.getElementById("insTitle").textContent = p.title || "Earthquake";
+        document.getElementById("insSource").href = p.url;
+        let html = "";
+        html += field("Position", Math.abs(rec.lat).toFixed(4) + "°" + (rec.lat >= 0 ? "N" : "S") + ", " +
+          Math.abs(rec.lon).toFixed(4) + "°" + (rec.lon >= 0 ? "E" : "W"));
+        html += field("Observed at", fmtUtc(p.time));
+        html += field("Data age", timeAgo(p.time));
+        html += field("Received at", fmtUtc(rec.receivedAt));
+        html += field("Source", "USGS");
+        if (p.mag !== null) html += field("Magnitude", p.mag.toFixed(1) + (p.magType ? " " + p.magType : ""));
+        html += field("Depth", rec.depth.toFixed(1), "km");
+        html += field("Location", p.place);
+        html += field("Review status", p.status);
+        if (p.alert) html += field("PAGER alert", p.alert);
+        if (p.tsunami === 1) html += field("Tsunami flag", "Yes — see official sources");
+        if (typeof p.sig === "number") html += field("Significance", p.sig);
+        document.getElementById("insFields").innerHTML = html;
+        document.getElementById("inspector").style.display = "block";
+        document.getElementById("insCenter").onclick = () =>
+          viewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(rec.lon, rec.lat, 1_500_000) });
+      }
+      document.getElementById("inspectorClose").onclick = () => {
+        document.getElementById("inspector").style.display = "none";
+      };
+
+      // ── Render ────────────────────────────────────────────────────────────
+      function render() {
+        points.removeAll();
+        lookup.clear();
+        const filtered = state.minMag <= 0 ? state.records : state.records.filter((r) => (r.props.mag ?? -Infinity) >= state.minMag);
+        for (const r of filtered) {
+          points.add({
+            position: Cesium.Cartesian3.fromDegrees(r.lon, r.lat, 0),
+            color: depthColor(r.depth),
+            outlineColor: Cesium.Color.fromCssColorString("#04060A").withAlpha(0.6),
+            outlineWidth: 1,
+            pixelSize: magSize(r.props.mag),
+            scaleByDistance: new Cesium.NearFarScalar(2.0e6, 1.15, 4.0e7, 0.55),
+            id: { terraId: r.id },
+          });
+          lookup.set(r.id, r);
+        }
+        viewer.scene.requestRender();
+
+        const total = state.records.length;
+        const shown = filtered.length;
+        const el = document.getElementById("count");
+        if (total === 0) el.innerHTML = '<span style="color:var(--terra-text-muted)">No events reported in this window.</span>';
+        else if (shown === 0) el.innerHTML = '<span class="warn">No events at this magnitude. Lower the threshold to see ' + total + ".</span>";
+        else el.innerHTML = "Showing <b>" + shown + "</b>" + (shown !== total ? ' of <span>' + total + "</span>" : "") + " events";
+      }
+
+      // ── Feed status UI ────────────────────────────────────────────────────
+      function setStatus(stateName, generatedMs) {
+        const colors = { live: "--terra-green", delayed: "--terra-amber", offline: "--terra-text-muted", stale: "--terra-amber" };
+        const c = "var(" + (colors[stateName] || "--terra-green") + ")";
+        const badge = document.getElementById("statusBadge");
+        badge.style.color = c; badge.style.borderColor = c;
+        badge.querySelector(".dot").style.background = c;
+        document.getElementById("statusLabel").textContent = stateName.toUpperCase();
+        document.getElementById("updatedAt").textContent = generatedMs ? "updated " + timeAgo(generatedMs) : "";
+      }
+
+      // ── Fetch (real USGS feed, validated shape) ───────────────────────────
+      let refreshTimer = null;
+      async function load() {
+        const errEl = document.getElementById("errorMsg");
+        try {
+          const resp = await fetch(USGS_BASE + "/all_" + state.window + ".geojson");
+          if (!resp.ok) throw new Error("USGS request failed (" + resp.status + ")");
+          const json = await resp.json();
+          if (!json || !Array.isArray(json.features) || !json.metadata) throw new Error("Unexpected feed shape");
+          const receivedAt = Date.now();
+          state.lastGenerated = json.metadata.generated;
+          state.records = json.features
+            .filter((f) => f.geometry && Array.isArray(f.geometry.coordinates))
+            .map((f) => ({
+              id: "usgs:" + f.id,
+              lon: f.geometry.coordinates[0],
+              lat: f.geometry.coordinates[1],
+              depth: typeof f.geometry.coordinates[2] === "number" ? f.geometry.coordinates[2] : 0,
+              props: f.properties,
+              receivedAt,
+            }));
+          const ageS = Math.max(0, (receivedAt - json.metadata.generated) / 1000);
+          setStatus(ageS > REFRESH_SECONDS * 3 ? "delayed" : "live", json.metadata.generated);
+          errEl.style.display = "none";
+          render();
+        } catch (e) {
+          errEl.textContent = "USGS earthquake data is temporarily unavailable. " +
+            (state.lastGenerated ? "Last update " + timeAgo(state.lastGenerated) + "." : "");
+          errEl.style.display = "block";
+          setStatus(state.records.length ? "stale" : "offline", state.lastGenerated);
+        }
+      }
+      function scheduleRefresh() {
+        if (refreshTimer) clearInterval(refreshTimer);
+        refreshTimer = setInterval(load, REFRESH_SECONDS * 1000);
+      }
+
+      // ── Controls ──────────────────────────────────────────────────────────
+      document.getElementById("windowSeg").addEventListener("click", (e) => {
+        const btn = e.target.closest("button");
+        if (!btn) return;
+        state.window = btn.dataset.w;
+        [...e.currentTarget.children].forEach((b) => b.classList.toggle("active", b === btn));
+        load();
+      });
+      document.getElementById("magSlider").addEventListener("input", (e) => {
+        state.minMag = Number(e.target.value);
+        document.getElementById("magLabel").textContent = state.minMag === 0 ? "All" : "M " + state.minMag.toFixed(1) + "+";
+        render();
+      });
+
+      load();
+      scheduleRefresh();
+    </script>
+  </body>
+</html>

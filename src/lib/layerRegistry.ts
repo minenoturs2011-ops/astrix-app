@@ -173,9 +173,12 @@ export const LAYER_CATALOG: TerraLayerDefinition[] = [
     attribution: "Earthquake data courtesy of the U.S. Geological Survey.",
     termsUrl: "https://www.usgs.gov/information-policies-and-instructions/crediting-usgs",
     coverageDescription: "Global; smaller events have regional detection thresholds.",
-    knownLimitations: ["Early magnitudes/locations may be revised as more data arrives."],
+    knownLimitations: [
+      "Early magnitudes/locations are automatic and may be revised as more data arrives.",
+      "Depth and magnitude uncertainty vary by region and network.",
+    ],
     sensitivity: "public",
-    implementationStatus: "planned",
+    implementationStatus: "available",
     defaultStyle: { color: "#FFC66D" },
   },
   {
