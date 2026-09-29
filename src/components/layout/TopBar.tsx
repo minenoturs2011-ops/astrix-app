@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { SearchBar } from "@/components/search/SearchBar";
 import { Icon } from "@/components/ui/Icon";
-import { useUiStore, type GlobeStyleMode } from "@/stores/useUiStore";
-import { GLOBE_STYLES } from "@/components/globe/globeStyles";
+import { useUiStore } from "@/stores/useUiStore";
+import { BASE_MAPS, baseMapAvailable, CAPS, type BaseMapId } from "@/components/globe/baseMaps";
 
 function UtcClock() {
   const [now, setNow] = useState(() => new Date());
@@ -17,33 +17,32 @@ function UtcClock() {
   );
 }
 
-function StyleSwitcher() {
-  const styleMode = useUiStore((s) => s.styleMode);
-  const setStyleMode = useUiStore((s) => s.setStyleMode);
-  const modes = Object.keys(GLOBE_STYLES) as GlobeStyleMode[];
+function BaseMapSelector() {
+  const baseMap = useUiStore((s) => s.baseMap);
+  const setBaseMap = useUiStore((s) => s.setBaseMap);
+  const active = BASE_MAPS.find((b) => b.id === baseMap);
   return (
-    <div
-      className="hidden items-center gap-0.5 rounded-lg border border-terra-border bg-terra-surface-2/70 p-0.5 md:flex"
-      role="radiogroup"
-      aria-label="Globe display mode"
-    >
-      {modes.map((m) => (
-        <button
-          key={m}
-          role="radio"
-          aria-checked={styleMode === m}
-          onClick={() => setStyleMode(m)}
-          title={GLOBE_STYLES[m].description}
-          className={`rounded-md px-2.5 py-1 text-xs transition-colors ${
-            styleMode === m
-              ? "bg-terra-surface-3 text-terra-text"
-              : "text-terra-text-muted hover:text-terra-text"
-          }`}
-        >
-          {GLOBE_STYLES[m].label}
-        </button>
-      ))}
-    </div>
+    <label className="hidden items-center gap-1.5 md:flex">
+      <span className="sr-only">Base map</span>
+      <Icon name="layers" size={15} className="text-terra-text-muted" />
+      <select
+        value={baseMap}
+        onChange={(e) => setBaseMap(e.target.value as BaseMapId)}
+        title={active?.description}
+        aria-label="Base map"
+        className="rounded-lg border border-terra-border bg-terra-surface-2/70 px-2 py-1 text-xs text-terra-text focus:border-terra-border-hover focus:outline-none"
+      >
+        {BASE_MAPS.map((b) => {
+          const avail = baseMapAvailable(b);
+          return (
+            <option key={b.id} value={b.id} disabled={!avail}>
+              {b.label}
+              {!avail ? " (needs key)" : ""}
+            </option>
+          );
+        })}
+      </select>
+    </label>
   );
 }
 
@@ -56,6 +55,10 @@ function SettingsMenu() {
   const toggleReducedEffects = useUiStore((s) => s.toggleReducedEffects);
   const presentationMode = useUiStore((s) => s.presentationMode);
   const togglePresentation = useUiStore((s) => s.togglePresentation);
+  const terrain = useUiStore((s) => s.terrain);
+  const toggleTerrain = useUiStore((s) => s.toggleTerrain);
+  const buildings = useUiStore((s) => s.buildings);
+  const toggleBuildings = useUiStore((s) => s.toggleBuildings);
 
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
@@ -65,12 +68,28 @@ function SettingsMenu() {
     return () => document.removeEventListener("mousedown", onClick);
   }, []);
 
-  const Row = ({ label, checked, onToggle }: { label: string; checked: boolean; onToggle: () => void }) => (
+  const Row = ({
+    label,
+    checked,
+    onToggle,
+    disabled,
+    hint,
+  }: {
+    label: string;
+    checked: boolean;
+    onToggle: () => void;
+    disabled?: boolean;
+    hint?: string;
+  }) => (
     <button
       role="menuitemcheckbox"
       aria-checked={checked}
+      disabled={disabled}
       onClick={onToggle}
-      className="flex w-full items-center justify-between gap-6 rounded-md px-2.5 py-2 text-sm text-terra-text hover:bg-terra-surface-3"
+      title={disabled ? hint : undefined}
+      className={`flex w-full items-center justify-between gap-6 rounded-md px-2.5 py-2 text-sm ${
+        disabled ? "cursor-not-allowed text-terra-text-muted opacity-60" : "text-terra-text hover:bg-terra-surface-3"
+      }`}
     >
       <span>{label}</span>
       <span
@@ -109,6 +128,29 @@ function SettingsMenu() {
           <Row label="Atmosphere glow" checked={atmosphere} onToggle={toggleAtmosphere} />
           <Row label="Reduced effects (low-power)" checked={reducedEffects} onToggle={toggleReducedEffects} />
           <Row label="Presentation mode (globe only)" checked={presentationMode} onToggle={togglePresentation} />
+          <div className="mt-1 px-2.5 pb-1 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-terra-text-muted">
+            3D detail
+          </div>
+          <Row
+            label="3D terrain"
+            checked={terrain}
+            onToggle={toggleTerrain}
+            disabled={!CAPS.ion}
+            hint="Requires a Cesium Ion token (see .env.example)"
+          />
+          <Row
+            label="3D buildings"
+            checked={buildings}
+            onToggle={toggleBuildings}
+            disabled={!CAPS.ion}
+            hint="Requires a Cesium Ion token (see .env.example)"
+          />
+          {!CAPS.ion && (
+            <p className="px-2.5 pb-1.5 pt-1 text-[10px] leading-relaxed text-terra-text-muted">
+              Add a free Cesium Ion token to enable 3D terrain & buildings. For full
+              Google-Earth-style 3D, add a Google Maps key (Base map → Google 3D). See the README.
+            </p>
+          )}
         </div>
       )}
     </div>
@@ -159,7 +201,7 @@ export function TopBar() {
 
       <div className="flex shrink-0 items-center gap-2">
         <UtcClock />
-        <StyleSwitcher />
+        <BaseMapSelector />
         {presentationMode ? (
           <button
             onClick={togglePresentation}

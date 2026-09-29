@@ -17,6 +17,15 @@ export default defineConfig({
   server: {
     host: true,
     port: 5173,
+    // CelesTrak's browser CORS is unreliable; proxy it through our origin
+    // (spec §15 server-side proxying). The desktop launcher does the same.
+    proxy: {
+      "/api/celestrak": {
+        target: "https://celestrak.org",
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/api\/celestrak/, "/NORAD/elements/gp.php"),
+      },
+    },
   },
   test: {
     globals: true,

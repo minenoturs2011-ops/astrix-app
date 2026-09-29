@@ -102,7 +102,13 @@ export function EntityInspector() {
             mono
           />
           {selected.altitudeMeters !== undefined && (
-            <DataRow label="Altitude" value={selected.altitudeMeters} unit="m" mono provenance="computed" />
+            <DataRow
+              label="Altitude"
+              value={Math.round(selected.altitudeMeters).toLocaleString()}
+              unit="m"
+              mono
+              provenance="computed"
+            />
           )}
           <DataRow label="Observed at" value={formatUtc(selected.observedAt)} mono />
           <DataRow label="Data age" value={timeAgo(selected.observedAt ?? selected.receivedAt)} mono />

@@ -1,4 +1,7 @@
-import type { GlobeStyleMode } from "@/stores/useUiStore";
+import type { BaseMapId } from "./baseMaps";
+
+/** Offline style family that adjusts the bundled base imagery. */
+export type OfflineStyleId = "natural" | "night" | "analytical";
 
 /**
  * Globe display modes (spec §5). All three are driven from Cesium's bundled
@@ -28,7 +31,7 @@ export type GlobeStyleConfig = {
   styledNote?: string;
 };
 
-export const GLOBE_STYLES: Record<GlobeStyleMode, GlobeStyleConfig> = {
+export const GLOBE_STYLES: Record<OfflineStyleId, GlobeStyleConfig> = {
   natural: {
     label: "Natural",
     description: "Natural Earth II imagery with restrained overlays.",
@@ -56,3 +59,11 @@ export const GLOBE_STYLES: Record<GlobeStyleMode, GlobeStyleConfig> = {
     showAtmosphere: false,
   },
 };
+
+/** Which offline style adjustment applies for a given base map. Satellite and
+ * streets render their own imagery, so they use neutral ("natural") adjustments. */
+export function offlineStyleFor(baseMap: BaseMapId): GlobeStyleConfig {
+  if (baseMap === "night") return GLOBE_STYLES.night;
+  if (baseMap === "analytical") return GLOBE_STYLES.analytical;
+  return GLOBE_STYLES.natural;
+}

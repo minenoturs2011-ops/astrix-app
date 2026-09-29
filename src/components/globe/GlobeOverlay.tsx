@@ -1,7 +1,7 @@
 import { useUiStore } from "@/stores/useUiStore";
 import { Icon } from "@/components/ui/Icon";
 import { formatDegrees } from "@/lib/format";
-import { GLOBE_STYLES } from "./globeStyles";
+import { offlineStyleFor } from "./globeStyles";
 
 /**
  * Floating controls over the globe: reset/home, cursor coordinate readout
@@ -10,8 +10,8 @@ import { GLOBE_STYLES } from "./globeStyles";
 export function GlobeOverlay() {
   const resetView = useUiStore((s) => s.resetView);
   const cursor = useUiStore((s) => s.cursor);
-  const styleMode = useUiStore((s) => s.styleMode);
-  const styledNote = GLOBE_STYLES[styleMode].styledNote;
+  const baseMap = useUiStore((s) => s.baseMap);
+  const styledNote = offlineStyleFor(baseMap).styledNote;
 
   return (
     <>

@@ -13,6 +13,7 @@ package main
 import (
 	"embed"
 	"fmt"
+	"io"
 	"io/fs"
 	"log"
 	"net"
@@ -61,6 +62,31 @@ func main() {
 	url := fmt.Sprintf("http://127.0.0.1:%d/", port)
 
 	mux := http.NewServeMux()
+
+	// Proxy CelesTrak (satellite orbital elements) through our own origin, since
+	// its browser CORS is unreliable (spec §15 server-side proxying).
+	mux.HandleFunc("/api/celestrak", func(w http.ResponseWriter, r *http.Request) {
+		target := "https://celestrak.org/NORAD/elements/gp.php"
+		if r.URL.RawQuery != "" {
+			target += "?" + r.URL.RawQuery
+		}
+		req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, target, nil)
+		if err != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		req.Header.Set("User-Agent", "TERRA/1.0 (desktop launcher)")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			http.Error(w, "upstream error", http.StatusBadGateway)
+			return
+		}
+		defer resp.Body.Close()
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(resp.StatusCode)
+		_, _ = io.Copy(w, resp.Body)
+	})
+
 	mux.Handle("/", http.FileServer(http.FS(sub)))
 
 	fmt.Println("====================================================")

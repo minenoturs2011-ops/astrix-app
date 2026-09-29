@@ -1,7 +1,6 @@
 import { create } from "zustand";
 import type { TerraEntity } from "@/types/entity";
-
-export type GlobeStyleMode = "natural" | "night" | "analytical";
+import type { BaseMapId } from "@/components/globe/baseMaps";
 
 export type FlyTarget = {
   longitude: number;
@@ -27,13 +26,17 @@ type UiStore = {
   setRightOpen: (v: boolean) => void;
   togglePresentation: () => void;
 
-  // Globe styling & effects
-  styleMode: GlobeStyleMode;
-  setStyleMode: (m: GlobeStyleMode) => void;
+  // Globe base map & effects
+  baseMap: BaseMapId;
+  setBaseMap: (m: BaseMapId) => void;
   atmosphere: boolean;
   toggleAtmosphere: () => void;
   reducedEffects: boolean; // low-performance mode (spec §17)
   toggleReducedEffects: () => void;
+  terrain: boolean; // 3D terrain elevation (requires Cesium Ion token)
+  toggleTerrain: () => void;
+  buildings: boolean; // 3D OSM buildings (requires Cesium Ion token)
+  toggleBuildings: () => void;
 
   // Cursor coordinate readout
   cursor: CursorReadout;
@@ -57,12 +60,16 @@ export const useUiStore = create<UiStore>((set) => ({
   setRightOpen: (v) => set({ rightOpen: v }),
   togglePresentation: () => set((s) => ({ presentationMode: !s.presentationMode })),
 
-  styleMode: "natural",
-  setStyleMode: (m) => set({ styleMode: m }),
+  baseMap: "natural",
+  setBaseMap: (m) => set({ baseMap: m }),
   atmosphere: true,
   toggleAtmosphere: () => set((s) => ({ atmosphere: !s.atmosphere })),
   reducedEffects: false,
   toggleReducedEffects: () => set((s) => ({ reducedEffects: !s.reducedEffects })),
+  terrain: false,
+  toggleTerrain: () => set((s) => ({ terrain: !s.terrain })),
+  buildings: false,
+  toggleBuildings: () => set((s) => ({ buildings: !s.buildings })),
 
   cursor: null,
   setCursor: (c) => set({ cursor: c }),

@@ -6,9 +6,11 @@
 TERRA is a premium, dark, desktop-first geospatial exploration platform built
 around a cinematic 3D Earth. This repository implements **Phase 1 — the globe
 foundation** and **Phase 2 — first real data layers**: live **earthquakes
-(USGS)** and **weather alerts (NOAA/NWS)**. It also ships a one-file **desktop
-launcher** (a Windows/macOS/Linux executable) that serves the app locally so the
-3D globe renders reliably.
+(USGS)**, **weather alerts (NOAA/NWS)**, and **satellites (CelesTrak, SGP4)**.
+Zoom in for high-resolution **satellite imagery** and **street maps** (free), with
+optional **3D terrain, 3D buildings, and Google Photorealistic 3D Tiles** behind
+your own keys. It also ships a one-file **desktop launcher** (a Windows/macOS/Linux
+executable) that serves the app locally so the 3D globe renders reliably.
 
 The guiding principle throughout: **never fake coverage, precision, or live
 status.** Simulated data is always labeled; real data always carries its source,
@@ -65,6 +67,19 @@ toggle-off):
   instructions, and a link to the official alert. Includes the reminder that a
   visualization is not a substitute for official guidance.
 
+**Satellites — CelesTrak (SGP4):**
+
+- Public, key-less TLE orbital elements from CelesTrak, propagated in-browser
+  with `satellite.js` (SGP4). Object groups: Space stations, Brightest, GPS,
+  Starlink.
+- Positions are **computed estimates, not live telemetry**, and the UI says so;
+  accuracy degrades as the element set ages (the epoch age is shown).
+- Rendered as GPU point primitives updated ~2×/second; selecting a satellite draws
+  its **predicted orbit path** and shows catalog ID, epoch, estimated altitude &
+  velocity, inclination, and period.
+- CelesTrak is fetched through a same-origin proxy (the dev server and the desktop
+  launcher both proxy `/api/celestrak`) because its browser CORS is unreliable.
+
 **Earthquakes — USGS:**
 
 The first real public data layer, wired end-to-end through the provider adapter
@@ -119,12 +134,50 @@ it over http (`python -m http.server` in the `standalone/` folder, then open
 `http://localhost:8000/terra-earthquakes.html`) or just use the desktop launcher
 above.
 
+## Base maps & 3D detail ("like Google Earth")
+
+Use the **Base map** selector in the top bar. Two options give real detail when
+you zoom in, with **no key required**:
+
+- **Satellite** — Esri World Imagery (high-resolution aerial/satellite photos).
+- **Streets** — OpenStreetMap (roads, streets, labels).
+
+Plus offline **Natural**, **Night** (computed terminator), and **Analytical**.
+
+For the full Google-Earth experience there are optional upgrades that need **your
+own key** (see below). Until a key is present they appear disabled/greyed:
+
+- **3D terrain** and **3D buildings** (Settings → 3D detail) — need a free
+  **Cesium Ion** token.
+- **Google 3D** base map — Google **Photorealistic 3D Tiles** (textured 3D
+  buildings + terrain, i.e. actual Google Earth 3D) — needs a **Google Maps
+  Platform** API key.
+
+> Honest note: truly "exactly like Google Earth" is Google's own Photorealistic
+> 3D Tiles. That data is Google's and is only available through the Google Maps
+> Platform (API key + billing account, with a monthly free allowance) — it can't
+> be bundled for free. Everything else above is free and gets you most of the way.
+
+## API keys — where to get them
+
+All keys are optional. TERRA works fully without them; they only add extra detail.
+Put them in a `.env` file (copy from `.env.example`). Restrict browser keys by
+HTTP referrer in the provider's console.
+
+| Key | Unlocks | Where to get it |
+| --- | ------- | --------------- |
+| `VITE_CESIUM_ION_TOKEN` | 3D terrain + 3D buildings | Sign in at <https://ion.cesium.com/> → **Access Tokens** → copy the default token (free tier). |
+| `VITE_GOOGLE_MAPS_API_KEY` | Google Photorealistic 3D Tiles ("Google 3D") | <https://console.cloud.google.com/> → create/select a project → enable **Map Tiles API** → **Credentials → Create API key** → restrict by HTTP referrer. Monthly free allowance; beyond it is billed. |
+
+No key is needed for earthquakes (USGS), weather alerts (NOAA/NWS), satellites
+(CelesTrak), place search (Open-Meteo), or the Satellite/Streets base maps.
+
 ### Not yet implemented (later phases)
 
-Other real feeds (weather alerts, wildfires, satellites, aircraft, ships…), the
-time machine / historical playback, saved views, alerts, file import, and the
-diagnostics panel are catalogued but not built. See [Roadmap](#roadmap). The
-catalog UI shows their status explicitly.
+Other real feeds (wildfires, aircraft, ships…), the time machine / historical
+playback, saved views, alerts, file import, and the diagnostics panel are
+catalogued but not built. See [Roadmap](#roadmap). The catalog UI shows their
+status explicitly.
 
 ---
 
@@ -133,7 +186,8 @@ catalog UI shows their status explicitly.
 | Concern        | Choice                                        |
 | -------------- | --------------------------------------------- |
 | Framework      | React 18 + TypeScript + Vite                  |
-| 3D globe       | CesiumJS (offline Natural Earth II imagery)   |
+| 3D globe       | CesiumJS (offline + Esri/OSM/optional Google 3D) |
+| Orbits         | satellite.js (SGP4 propagation)               |
 | Styling        | Tailwind CSS + TERRA design tokens (CSS vars) |
 | State          | Zustand                                        |
 | Validation     | Zod (external payload validation)             |
@@ -189,8 +243,11 @@ All current sources are key-less and permissively licensed:
 | **Open-Meteo Geocoding API** | Place search | Free, key-less. Place names from GeoNames (CC BY 4.0). <https://open-meteo.com/en/docs/geocoding-api> |
 | **USGS Earthquake Hazards Program** | Live earthquakes | "Earthquake data courtesy of the U.S. Geological Survey." Public GeoJSON feeds. <https://earthquake.usgs.gov/> |
 | **NOAA / National Weather Service** | Live weather alerts (US) | "Alerts courtesy of NOAA / National Weather Service." Public API. <https://www.weather.gov/documentation/services-web-api> |
+| **CelesTrak** | Satellite orbital elements (TLE) | "Orbital element sets courtesy of CelesTrak." Public, proxied for CORS. <https://celestrak.org/> |
+| **Esri World Imagery** | Satellite base map | "Imagery © Esri and its data providers." Free, attribution required. |
+| **OpenStreetMap** | Streets base map | "© OpenStreetMap contributors" (ODbL). Subject to the OSM tile usage policy. |
 
-Other providers (NASA FIRMS, CelesTrak, OpenSky, …) are registered in
+Other providers (NASA FIRMS, OpenSky, …) are registered in
 `src/lib/sources.ts` for later phases. **Their terms, coverage, and
 redistribution rules must be re-verified before they are wired into a production
 layer.**
@@ -250,9 +307,11 @@ style switching, demo-entity selection, cursor readout, responsive layout).
 ## Roadmap
 
 Phase 1 ✅ Globe foundation ·
-Phase 2 🚧 First real public data layers — **earthquakes (USGS)** and **weather
-alerts (NOAA/NWS)** done; wildfires and satellites next ·
-Phase 3 Unified tracking (aircraft/satellite/maritime, trails) ·
+Phase 2 🚧 First real public data layers — **earthquakes (USGS)**, **weather
+alerts (NOAA/NWS)**, and **satellites (CelesTrak)** done; wildfires next. Plus
+high-detail base maps (Esri satellite, OSM streets) and optional 3D terrain/
+buildings/Google 3D. ·
+Phase 3 Unified tracking (aircraft/satellite/maritime, trails, orbit passes) ·
 Phase 4 Weather & environment rasters ·
 Phase 5 Timeline & history ·
 Phase 6 Public cameras & transport ·

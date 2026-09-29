@@ -11,6 +11,7 @@ import { useUiStore } from "@/stores/useUiStore";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { EarthquakeFeedController } from "@/features/earthquakes/useEarthquakeFeed";
 import { AlertFeedController } from "@/features/alerts/useAlertFeed";
+import { SatelliteFeedController } from "@/features/satellites/useSatelliteFeed";
 
 export default function App() {
   const isDesktop = useMediaQuery("(min-width: 1024px)");
@@ -62,6 +63,7 @@ export default function App() {
       <div className="h-full w-full bg-terra-bg">
         <EarthquakeFeedController />
         <AlertFeedController />
+        <SatelliteFeedController />
         {globe}
       </div>
     );
@@ -72,6 +74,7 @@ export default function App() {
       {/* Data feed pollers (no UI) */}
       <EarthquakeFeedController />
       <AlertFeedController />
+      <SatelliteFeedController />
       <TopBar />
 
       <div className="relative flex min-h-0 flex-1">
