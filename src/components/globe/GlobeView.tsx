@@ -22,9 +22,12 @@ import {
 import { useUiStore } from "@/stores/useUiStore";
 import { useLayerStore } from "@/stores/useLayerStore";
 import { useEarthquakeStore } from "@/stores/useEarthquakeStore";
+import { useAlertStore } from "@/stores/useAlertStore";
 import { GLOBE_STYLES } from "./globeStyles";
 import { getDemoEntities } from "@/lib/demoData";
 import { depthColor, magnitudeToPixelSize } from "@/features/earthquakes/earthquakeStyle";
+import { severityColor } from "@/features/alerts/alertStyle";
+import { SEVERITY_RANK } from "@/features/alerts/types";
 import type { TerraEntity } from "@/types/entity";
 
 const HOME_VIEW = { lon: 12, lat: 25, height: 22_000_000 };
@@ -47,6 +50,9 @@ export function GlobeView() {
   // Earthquake point primitives + id→entity lookup for selection.
   const quakeCollection = useRef<PointPrimitiveCollection | null>(null);
   const quakeLookup = useRef<Map<string, TerraEntity>>(new Map());
+  // Weather-alert entities (polygons + centroid points) + lookup.
+  const alertEntityIds = useRef<Set<string>>(new Set());
+  const alertLookup = useRef<Map<string, TerraEntity>>(new Map());
 
   // Read stores imperatively inside effects to avoid re-creating the viewer.
   const setCursor = useUiStore((s) => s.setCursor);
@@ -118,10 +124,11 @@ export function GlobeView() {
     handler.setInputAction((click: ScreenSpaceEventHandler.PositionedEvent) => {
       const picked = viewer.scene.pick(click.position);
       if (defined(picked)) {
-        // Demo entities are Cesium Entities carrying a terraId property.
+        // Demo entities and weather-alert polygons/points are Cesium Entities
+        // carrying a terraId property.
         if (picked.id instanceof CesiumEntity && picked.id.properties?.terraId) {
           const id = picked.id.properties.terraId.getValue(viewer.clock.currentTime) as string;
-          const entity = demoSnapshot.current.find((e) => e.id === id);
+          const entity = demoSnapshot.current.find((e) => e.id === id) ?? alertLookup.current.get(id);
           if (entity) {
             select(entity);
             return;
@@ -302,6 +309,81 @@ export function GlobeView() {
 
     viewer.scene.requestRender();
   }, [quakeEnabled, quakeRecords, quakeMinMag, quakeOpacity, select]);
+
+  // ── Weather alerts (NOAA/NWS) → polygons + centroid points ──────────────────
+  const alertEnabled = useLayerStore((s) => s.layers["severe-alerts"]?.enabled ?? false);
+  const alertOpacity = useLayerStore((s) => s.layers["severe-alerts"]?.opacity ?? 1);
+  const alertRecords = useAlertStore((s) => s.records);
+  const alertMinSeverity = useAlertStore((s) => s.minSeverity);
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer) return;
+
+    const clearAlerts = () => {
+      for (const id of alertEntityIds.current) {
+        const e = viewer.entities.getById(id);
+        if (e) viewer.entities.remove(e);
+      }
+      alertEntityIds.current.clear();
+      alertLookup.current.clear();
+    };
+
+    if (!alertEnabled) {
+      clearAlerts();
+      if (useUiStore.getState().selected?.category === "weather-alert") select(null);
+      viewer.scene.requestRender();
+      return;
+    }
+
+    clearAlerts();
+    const floor = alertMinSeverity === "all" ? 0 : SEVERITY_RANK[alertMinSeverity];
+    const filtered = alertRecords.filter((r) => r.hasGeometry && SEVERITY_RANK[r.severity] >= floor);
+
+    viewer.entities.suspendEvents();
+    for (const rec of filtered) {
+      const color = Color.fromCssColorString(severityColor(rec.severity));
+      // Polygon fill per outer ring.
+      rec.rings.forEach((ring, i) => {
+        const positions = Cartesian3.fromDegreesArray(ring.flat());
+        const polyId = `${rec.entity.id}#poly${i}`;
+        viewer.entities.add({
+          id: polyId,
+          properties: { terraId: rec.entity.id },
+          polygon: {
+            hierarchy: positions,
+            material: color.withAlpha(0.28 * alertOpacity),
+            height: 0,
+          },
+        });
+        alertEntityIds.current.add(polyId);
+      });
+      // Centroid marker (visible/clickable at global zoom).
+      const pointId = `${rec.entity.id}#pt`;
+      viewer.entities.add({
+        id: pointId,
+        position: Cartesian3.fromDegrees(rec.entity.longitude, rec.entity.latitude, 0),
+        properties: { terraId: rec.entity.id },
+        point: {
+          pixelSize: 9,
+          color: color.withAlpha(alertOpacity),
+          outlineColor: Color.fromCssColorString("#04060A").withAlpha(0.6 * alertOpacity),
+          outlineWidth: 1,
+          scaleByDistance: new NearFarScalar(2.0e6, 1.2, 4.0e7, 0.6),
+        },
+      });
+      alertEntityIds.current.add(pointId);
+      alertLookup.current.set(rec.entity.id, rec.entity);
+    }
+    viewer.entities.resumeEvents();
+
+    const sel = useUiStore.getState().selected;
+    if (sel?.category === "weather-alert") {
+      const fresh = alertLookup.current.get(sel.id);
+      if (fresh) useUiStore.setState({ selected: fresh });
+    }
+
+    viewer.scene.requestRender();
+  }, [alertEnabled, alertRecords, alertMinSeverity, alertOpacity, select]);
 
   // ── Fly-to (search result / bookmark) ──────────────────────────────────────
   const flyTarget = useUiStore((s) => s.flyTarget);

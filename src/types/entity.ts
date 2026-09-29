@@ -36,6 +36,7 @@ export type EntityCategory =
   | "earthquake"
   | "wildfire"
   | "weather-station"
+  | "weather-alert"
   | "camera"
   | "demo";
 

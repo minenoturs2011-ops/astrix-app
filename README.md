@@ -5,8 +5,10 @@
 
 TERRA is a premium, dark, desktop-first geospatial exploration platform built
 around a cinematic 3D Earth. This repository implements **Phase 1 — the globe
-foundation** plus the first real data layer of **Phase 2 — live earthquakes
-from USGS**.
+foundation** and **Phase 2 — first real data layers**: live **earthquakes
+(USGS)** and **weather alerts (NOAA/NWS)**. It also ships a one-file **desktop
+launcher** (a Windows/macOS/Linux executable) that serves the app locally so the
+3D globe renders reliably.
 
 The guiding principle throughout: **never fake coverage, precision, or live
 status.** Simulated data is always labeled; real data always carries its source,
@@ -44,7 +46,26 @@ timestamp, and known limitations.
   status never encoded by color alone, `prefers-reduced-motion` support, and a
   reduced-effects (low-power) mode.
 
-## What's implemented (Phase 2 — earthquakes)
+## What's implemented (Phase 2 — real data layers)
+
+Two real public data layers, wired end-to-end through the provider-adapter
+pattern (Zod-validated, normalized, honest freshness, filters, cleanup on
+toggle-off):
+
+**Weather alerts — NOAA/NWS (US):**
+
+- Active watches/warnings/advisories from the public, key-less `api.weather.gov`
+  feed. Polygons (`Polygon`/`MultiPolygon`) are drawn and coloured by **severity**
+  with a legend; a centroid marker keeps small alerts clickable.
+- **Honest coverage** — US-only, and alerts that reference NWS zones without an
+  inline map shape are counted but not drawn (stated in the UI).
+- Severity filter (All / Severe+ / Extreme), live count, and 2-minute polling
+  with backoff.
+- Inspector: event, severity, urgency, certainty, headline, area, onset/expires,
+  instructions, and a link to the official alert. Includes the reminder that a
+  visualization is not a substitute for official guidance.
+
+**Earthquakes — USGS:**
 
 The first real public data layer, wired end-to-end through the provider adapter
 pattern:
@@ -67,14 +88,36 @@ pattern:
   a link to the official USGS event page. Attribution: *"Earthquake data courtesy
   of the U.S. Geological Survey."*
 
+### Desktop launcher (recommended — a single executable)
+
+`packaging/` builds a **single self-contained executable** (`TERRA-windows-amd64.exe`,
+plus macOS/Linux) that embeds the built web app, serves it on `http://127.0.0.1`,
+and opens your browser. This is the most reliable way to run TERRA: because the
+app is *served* (not opened as a bare file), CesiumJS can load its web workers
+and the 3D globe renders correctly. Live data is fetched over the internet; no
+build step or API key is required.
+
+```bash
+# Build the Windows .exe (also cross-builds from macOS/Linux):
+packaging/build-desktop.sh
+# or several targets at once:
+TARGETS="windows/amd64 darwin/arm64 linux/amd64" packaging/build-desktop.sh
+# → output in packaging/dist-bin/
+```
+
+Requires Go 1.24+ and Node. On Windows, just double-click `TERRA-windows-amd64.exe`
+and keep the console window open; close it to stop the app.
+
 ### Standalone HTML demo
 
-`standalone/terra-earthquakes.html` is a **single self-contained file** you can
-open directly in a modern browser (needs internet for the CDN + live feed, but
-**no build step and no API key**). It shows the live USGS earthquake globe with
-the same styling, filters, legend, and inspector. It loads CesiumJS and its
-offline Natural Earth II imagery from a CDN and fetches the live USGS feed
-client-side.
+`standalone/terra-earthquakes.html` is a single file that shows the live USGS
+earthquakes **and** NOAA/NWS weather alerts, with the base map embedded directly
+in the file. **Important:** browsers block CesiumJS's web workers on `file://`,
+so opening it by double-click renders the data points but not the 3D globe
+surface — the file detects this and shows a notice. To see the full globe, serve
+it over http (`python -m http.server` in the `standalone/` folder, then open
+`http://localhost:8000/terra-earthquakes.html`) or just use the desktop launcher
+above.
 
 ### Not yet implemented (later phases)
 
@@ -145,8 +188,9 @@ All current sources are key-less and permissively licensed:
 | **CesiumJS** | Globe engine | © Cesium. The on-globe Cesium logo credit is retained per Cesium's terms. |
 | **Open-Meteo Geocoding API** | Place search | Free, key-less. Place names from GeoNames (CC BY 4.0). <https://open-meteo.com/en/docs/geocoding-api> |
 | **USGS Earthquake Hazards Program** | Live earthquakes | "Earthquake data courtesy of the U.S. Geological Survey." Public GeoJSON feeds. <https://earthquake.usgs.gov/> |
+| **NOAA / National Weather Service** | Live weather alerts (US) | "Alerts courtesy of NOAA / National Weather Service." Public API. <https://www.weather.gov/documentation/services-web-api> |
 
-Other providers (NOAA/NWS, NASA FIRMS, CelesTrak, OpenSky, …) are registered in
+Other providers (NASA FIRMS, CelesTrak, OpenSky, …) are registered in
 `src/lib/sources.ts` for later phases. **Their terms, coverage, and
 redistribution rules must be re-verified before they are wired into a production
 layer.**
@@ -206,8 +250,8 @@ style switching, demo-entity selection, cursor readout, responsive layout).
 ## Roadmap
 
 Phase 1 ✅ Globe foundation ·
-Phase 2 🚧 First real public data layers — **earthquakes (USGS) done**; weather
-alerts, wildfires, satellites next ·
+Phase 2 🚧 First real public data layers — **earthquakes (USGS)** and **weather
+alerts (NOAA/NWS)** done; wildfires and satellites next ·
 Phase 3 Unified tracking (aircraft/satellite/maritime, trails) ·
 Phase 4 Weather & environment rasters ·
 Phase 5 Timeline & history ·

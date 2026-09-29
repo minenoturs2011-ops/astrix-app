@@ -11,3 +11,7 @@ coverage
 .vite
 
 *.tsbuildinfo
+
+# Desktop packaging build artifacts
+packaging/terra-server/dist/
+packaging/dist-bin/
