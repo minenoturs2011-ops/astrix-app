@@ -1,0 +1,36 @@
+/*
+ * TERRA design tokens — Premium Dark UI (spec §5).
+ * Single source of truth; Tailwind maps these via tailwind.config.js.
+ */
+:root {
+  /* Backgrounds & surfaces */
+  --terra-bg: #07090d;
+  --terra-surface-1: #0c1017;
+  --terra-surface-2: #111722;
+  --terra-surface-3: #17202d;
+
+  /* Text */
+  --terra-text: #f3f6fa;
+  --terra-text-secondary: #a3adbc;
+  --terra-text-muted: #6f7b8d;
+
+  /* Borders */
+  --terra-border: rgba(220, 235, 255, 0.09);
+  --terra-border-hover: rgba(220, 235, 255, 0.17);
+
+  /* Semantic accents */
+  --terra-accent: #70a7ff;
+  --terra-cyan: #55d6e8;
+  --terra-violet: #a78bfa;
+  --terra-green: #54d6a0;
+  --terra-amber: #ffc66d;
+  --terra-red: #ff737d;
+
+  /* Layout metrics */
+  --terra-topbar-h: 56px;
+  --terra-timeline-h: 64px;
+  --terra-radius: 12px;
+  --terra-radius-sm: 8px;
+
+  color-scheme: dark;
+}
